@@ -134,14 +134,16 @@ st.title("Générateur de paquet SCORM")
 url = st.text_input("URL à consulter", "https://example.com")
 scorm_version = st.selectbox("Version SCORM", ["SCORM 1.2", "SCORM 2004 3rd edition"])
 
-# Sélection d'heure / minute / seconde pour la durée
+# Sélection d'heure / minute / seconde pour la durée minimale
 st.write("### Durée minimale requise avant validation")
 heures = st.selectbox("Heures", list(range(0, 6)), index=0)
 minutes = st.selectbox("Minutes", list(range(0, 60)), index=0)
 secondes = st.selectbox("Secondes", list(range(0, 60)), index=30)
 
-# Calcul de la durée en secondes
+# Calcul et affichage de la durée
 duration = heures * 3600 + minutes * 60 + secondes
+duration_str = str(timedelta(seconds=duration))
+st.markdown(f"⏱️ **Durée totale sélectionnée : `{duration_str}`**")
 
 if st.button("Générer le SCORM"):
     # Créer un zip en mémoire
@@ -158,4 +160,5 @@ if st.button("Générer le SCORM"):
 
     st.success("Fichier SCORM généré !")
     st.download_button("📥 Télécharger le paquet SCORM", data=buffer.getvalue(), file_name="scorm_package.zip")
+
 
