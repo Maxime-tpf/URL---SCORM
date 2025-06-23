@@ -190,7 +190,7 @@ total_duration_in_seconds = (hours * 3600) + (minutes * 60) + seconds
 # Bouton pour générer le paquet SCORM
 if st.button("Générer le SCORM"):
     if total_duration_in_seconds == 0:
-        st.error("La durée minimale de consultation doit être supérieure à zéro.")
+        st.error("La durée doit être supérieure à zéro.")
     else:
         # Créer un buffer en mémoire pour le fichier zip
         buffer = io.BytesIO()
