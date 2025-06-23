@@ -45,6 +45,7 @@ MANIFEST_2004 = '''<?xml version="1.0" encoding="UTF-8"?>
       <item identifier="ITEM" identifierref="RES">
         <title>SCORM URL Content</title>
       </item>
+    </item>
     </organization>
   </organizations>
   <resources>
@@ -90,14 +91,17 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         // Met à jour le statut de la leçon
         if (elapsed >= requiredTime) {
           pipwerks.SCORM.set("cmi.core.lesson_status", "completed"); // Marque comme complété si le temps requis est atteint
-          // Optionnel : Arrêter le timer une fois le temps requis atteint pour éviter les mises à jour inutiles
-          clearInterval(timer);
-          pipwerks.SCORM.quit(); // Quitter la connexion SCORM si tout est complété
         } else {
           pipwerks.SCORM.set("cmi.core.lesson_status", "incomplete"); // Sinon, marque comme incomplet
         }
 
         pipwerks.SCORM.save(); // Enregistre les données dans le LMS
+
+        // Optionnel : Arrêter le timer une fois le temps requis atteint pour éviter les mises à jour inutiles
+        // if (elapsed >= requiredTime) {
+        //   clearInterval(timer);
+        //   pipwerks.SCORM.quit(); // Quitter la connexion SCORM si tout est complété
+        // }
       }, 1000); // Exécute toutes les secondes (1000 ms)
     }
   </script>
@@ -122,4 +126,88 @@ var pipwerks = {
     init: function() {
       this.api = this.getAPIHandle(); // Tente d'obtenir le handle de l'API LMS
       if (this.api === null) {
-        console.error("
+        console.error("SCORM API non trouvée.");
+        return false;
+      }
+      // Appelle LMSInitialize pour commencer la session SCORM
+      return this.api.LMSInitialize("") === "true";
+    },
+
+    // Récupère une valeur du LMS
+    get: function(parameter) {
+      return this.api ? this.api.LMSGetValue(parameter) : null;
+    },
+
+    // Définit une valeur dans le LMS
+    set: function(parameter, value) {
+      return this.api ? this.api.LMSSetValue(parameter, value) === "true" : false;
+    },
+
+    // Enregistre les données dans le LMS
+    save: function() {
+      return this.api ? this.api.LMSCommit("") === "true" : false;
+    },
+
+    // Termine la connexion avec le LMS
+    quit: function() {
+      return this.api ? this.api.LMSFinish("") === "true" : false;
+    },
+
+    // Recherche et renvoie le handle de l'API SCORM dans la fenêtre parent ou courante
+    getAPIHandle: function() {
+      var win = window;
+      while (win) {
+        // Vérifie si l'objet 'API' existe
+        if (win.API) return win.API;
+        // Si non, et s'il y a un parent différent de la fenêtre actuelle, remonte d'un niveau
+        if (win.parent && win.parent !== win) win = win.parent;
+        else break; // S'il n'y a plus de parent ou si c'est la fenêtre elle-même, arrête la recherche
+      }
+      return null; // Si l'API n'est pas trouvée
+    }
+  }
+};
+'''
+
+# --- Streamlit App ---
+# Titre de l'application Streamlit
+st.title("Générateur de paquet SCORM")
+
+# Champ de saisie pour l'URL à encapsuler
+url = st.text_input("URL à consulter", "https://example.com")
+# Sélecteur pour choisir la version SCORM
+scorm_version = st.selectbox("Version SCORM", ["SCORM 1.2", "SCORM 2004 3rd edition"])
+# Champ numérique pour définir la durée minimale de consultation
+duration = st.number_input("Durée minimale (en secondes)", min_value=1, value=30)
+
+# Bouton pour générer le paquet SCORM
+if st.button("Générer le SCORM"):
+    # Créer un buffer en mémoire pour le fichier zip
+    buffer = io.BytesIO()
+    # Crée un fichier zip en mémoire
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Remplace les placeholders dans le template HTML avec l'URL et la durée
+        html_content = HTML_TEMPLATE.replace("{url}", url).replace("{time}", str(duration))
+        # Écrit le fichier index.html dans le zip
+        zf.writestr("index.html", html_content)
+        # Écrit le fichier scorm.js dans le zip
+        zf.writestr("scorm.js", SCORM_JS)
+
+        # Choisit le bon manifeste SCORM en fonction de la version sélectionnée
+        if scorm_version == "SCORM 1.2":
+            zf.writestr("imsmanifest.xml", MANIFEST_12)
+        else:
+            zf.writestr("imsmanifest.xml", MANIFEST_2004)
+
+    # Affiche un message de succès
+    st.success("Fichier SCORM généré !")
+    # Fournit un bouton de téléchargement pour le fichier zip généré
+    st.download_button(
+        "📥 Télécharger le paquet SCORM",
+        data=buffer.getvalue(),
+        file_name="scorm_package.zip",
+        mime="application/zip" # Spécifie le type MIME pour le téléchargement
+    )
+
+
+
