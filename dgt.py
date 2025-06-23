@@ -168,31 +168,12 @@ var pipwerks = {
 # --- Streamlit App ---
 st.title("Générateur de paquet SCORM")
 
-# Liste d'URLs prédéfinies
-predefined_urls = {
-    "Exemple Google": "https://www.google.com",
-    "Exemple Wikipédia": "https://fr.wikipedia.org/wiki/Wikipédia",
-    "Exemple OpenAI": "https://openai.com",
-    "Autre (saisir ci-dessous)": "" # Option pour saisir une URL personnalisée
-}
-
-# Menu déroulant pour choisir une URL prédéfinie
-selected_predefined_url_name = st.selectbox(
-    "Choisir une URL prédéfinie :",
-    list(predefined_urls.keys())
-)
-
-# Récupère l'URL correspondante ou une chaîne vide si "Autre" est sélectionné
-default_url_value = predefined_urls[selected_predefined_url_name]
-
 # Champ de saisie pour l'URL à encapsuler
-# Il est pré-rempli avec l'URL prédéfinie choisie, mais l'utilisateur peut la modifier
-url = st.text_input("URL à consulter (modifiable) :", value=default_url_value)
-
+url = st.text_input("URL à consulter", "https://example.com")
 # Sélecteur pour choisir la version SCORM
 scorm_version = st.selectbox("Version SCORM", ["SCORM 1.2", "SCORM 2004 3rd edition"])
 
-st.subheader("Durée minimale de consultation")
+st.subheader("Durée")
 # Utilisation de colonnes pour une meilleure disposition des champs de durée
 col_h, col_m, col_s = st.columns(3)
 
@@ -208,10 +189,8 @@ total_duration_in_seconds = (hours * 3600) + (minutes * 60) + seconds
 
 # Bouton pour générer le paquet SCORM
 if st.button("Générer le SCORM"):
-    if not url.strip(): # Vérifie si l'URL est vide après suppression des espaces
-        st.error("Veuillez saisir une URL à consulter.")
-    elif total_duration_in_seconds == 0:
-        st.error("La durée minimale de consultation doit être supérieure à zéro.")
+    if total_duration_in_seconds == 0:
+        st.error("La durée doit être supérieure à zéro.")
     else:
         # Créer un buffer en mémoire pour le fichier zip
         buffer = io.BytesIO()
