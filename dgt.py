@@ -1,6 +1,7 @@
 import streamlit as st
 import zipfile
 import io
+import re # Importe le module re pour les expressions régulières
 from datetime import timedelta
 
 # Templates pour le manifest SCORM 1.2 et SCORM 2004
@@ -165,56 +166,99 @@ var pipwerks = {
 };
 '''
 
+# Fonction pour analyser la chaîne de durée HH:MM:SS en secondes
+def parse_duration_to_seconds(duration_str):
+    # Regex pour valider le format HH:MM:SS
+    # ^(\d{2}) : Commence par 2 chiffres (heures)
+    # :(\d{2}) : Suivi de : et 2 chiffres (minutes)
+    # :(\d{2})$ : Suivi de : et 2 chiffres (secondes) et fin de chaîne
+    pattern = re.compile(r"^(\d{2}):(\d{2}):(\d{2})$")
+    match = pattern.match(duration_str)
+
+    if not match:
+        return None, "Le format de durée doit être HH:MM:SS (ex: 00:01:30)."
+
+    try:
+        h, m, s = map(int, match.groups())
+    except ValueError:
+        return None, "Les valeurs de durée ne sont pas valides (doivent être des nombres)."
+
+    # Validation des plages de valeurs (heures peuvent dépasser 23 pour de longues durées)
+    if not (0 <= m <= 59 and 0 <= s <= 59):
+        return None, "Les minutes (00-59) et les secondes (00-59) ne sont pas valides."
+
+    total_seconds = (h * 3600) + (m * 60) + s
+    if total_seconds == 0:
+        return None, "La durée totale doit être supérieure à zéro."
+
+    return total_seconds, None
+
 # --- Streamlit App ---
 st.title("Générateur de paquet SCORM")
 
+# Liste d'URLs prédéfinies
+predefined_urls = {
+    "Exemple Google": "https://www.google.com",
+    "Exemple Wikipédia": "https://fr.wikipedia.org/wiki/Wikipédia",
+    "Exemple OpenAI": "https://openai.com",
+    "Autre (saisir ci-dessous)": "" # Option pour saisir une URL personnalisée
+}
+
+# Menu déroulant pour choisir une URL prédéfinie
+selected_predefined_url_name = st.selectbox(
+    "Choisir une URL prédéfinie :",
+    list(predefined_urls.keys())
+)
+
+# Récupère l'URL correspondante ou une chaîne vide si "Autre" est sélectionné
+default_url_value = predefined_urls[selected_predefined_url_name]
+
 # Champ de saisie pour l'URL à encapsuler
-url = st.text_input("URL à consulter", "https://example.com")
+# Il est pré-rempli avec l'URL prédéfinie choisie, mais l'utilisateur peut la modifier
+url = st.text_input("URL à consulter (modifiable) :", value=default_url_value)
+
 # Sélecteur pour choisir la version SCORM
 scorm_version = st.selectbox("Version SCORM", ["SCORM 1.2", "SCORM 2004 3rd edition"])
 
-st.subheader("Durée")
-# Utilisation de colonnes pour une meilleure disposition des champs de durée
-col_h, col_m, col_s = st.columns(3)
-
-with col_h:
-    hours = st.number_input("Heures", min_value=0, value=0)
-with col_m:
-    minutes = st.number_input("Minutes", min_value=0, max_value=59, value=0)
-with col_s:
-    seconds = st.number_input("Secondes", min_value=0, max_value=59, value=30)
-
-# Calcul de la durée totale en secondes
-total_duration_in_seconds = (hours * 3600) + (minutes * 60) + seconds
+st.subheader("Durée minimale de consultation")
+# Champ de saisie pour la durée au format HH:MM:SS
+duration_input = st.text_input("Durée (HH:MM:SS) :", value="00:00:30")
 
 # Bouton pour générer le paquet SCORM
 if st.button("Générer le SCORM"):
-    if total_duration_in_seconds == 0:
-        st.error("La durée doit être supérieure à zéro.")
+    # Valider l'URL
+    if not url.strip():
+        st.error("Veuillez saisir une URL à consulter.")
     else:
-        # Créer un buffer en mémoire pour le fichier zip
-        buffer = io.BytesIO()
-        # Crée un fichier zip en mémoire
-        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            # Remplace les placeholders dans le template HTML avec l'URL et la durée
-            html_content = HTML_TEMPLATE.replace("{url}", url).replace("{time}", str(total_duration_in_seconds))
-            # Écrit le fichier index.html dans le zip
-            zf.writestr("index.html", html_content)
-            # Écrit le fichier scorm.js dans le zip
-            zf.writestr("scorm.js", SCORM_JS)
+        # Analyser et valider la durée
+        total_duration_in_seconds, error_message = parse_duration_to_seconds(duration_input)
 
-            # Choisit le bon manifeste SCORM en fonction de la version sélectionnée
-            if scorm_version == "SCORM 1.2":
-                zf.writestr("imsmanifest.xml", MANIFEST_12)
-            else:
-                zf.writestr("imsmanifest.xml", MANIFEST_2004)
+        if error_message:
+            st.error(error_message)
+        else:
+            # Créer un buffer en mémoire pour le fichier zip
+            buffer = io.BytesIO()
+            # Crée un fichier zip en mémoire
+            with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+                # Remplace les placeholders dans le template HTML avec l'URL et la durée
+                html_content = HTML_TEMPLATE.replace("{url}", url).replace("{time}", str(total_duration_in_seconds))
+                # Écrit le fichier index.html dans le zip
+                zf.writestr("index.html", html_content)
+                # Écrit le fichier scorm.js dans le zip
+                zf.writestr("scorm.js", SCORM_JS)
 
-        # Affiche un message de succès
-        st.success("Fichier SCORM généré !")
-        # Fournit un bouton de téléchargement pour le fichier zip généré
-        st.download_button(
-            "📥 Télécharger le paquet SCORM",
-            data=buffer.getvalue(),
-            file_name="scorm_package.zip",
-            mime="application/zip" # Spécifie le type MIME pour le téléchargement
-        )
+                # Choisit le bon manifeste SCORM en fonction de la version sélectionnée
+                if scorm_version == "SCORM 1.2":
+                    zf.writestr("imsmanifest.xml", MANIFEST_12)
+                else:
+                    zf.writestr("imsmanifest.xml", MANIFEST_2004)
+
+            # Affiche un message de succès
+            st.success("Fichier SCORM généré !")
+            # Fournit un bouton de téléchargement pour le fichier zip généré
+            st.download_button(
+                "📥 Télécharger le paquet SCORM",
+                data=buffer.getvalue(),
+                file_name="scorm_package.zip",
+                mime="application/zip" # Spécifie le type MIME pour le téléchargement
+            )
