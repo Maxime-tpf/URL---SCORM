@@ -45,7 +45,6 @@ MANIFEST_2004 = '''<?xml version="1.0" encoding="UTF-8"?>
       <item identifier="ITEM" identifierref="RES">
         <title>SCORM URL Content</title>
       </item>
-    </item>
     </organization>
   </organizations>
   <resources>
@@ -91,17 +90,14 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         // Met à jour le statut de la leçon
         if (elapsed >= requiredTime) {
           pipwerks.SCORM.set("cmi.core.lesson_status", "completed"); // Marque comme complété si le temps requis est atteint
+          // Optionnel : Arrêter le timer une fois le temps requis atteint pour éviter les mises à jour inutiles
+          clearInterval(timer);
+          pipwerks.SCORM.quit(); // Quitter la connexion SCORM si tout est complété
         } else {
           pipwerks.SCORM.set("cmi.core.lesson_status", "incomplete"); // Sinon, marque comme incomplet
         }
 
         pipwerks.SCORM.save(); // Enregistre les données dans le LMS
-
-        // Optionnel : Arrêter le timer une fois le temps requis atteint pour éviter les mises à jour inutiles
-        // if (elapsed >= requiredTime) {
-        //   clearInterval(timer);
-        //   pipwerks.SCORM.quit(); // Quitter la connexion SCORM si tout est complété
-        // }
       }, 1000); // Exécute toutes les secondes (1000 ms)
     }
   </script>
@@ -169,45 +165,76 @@ var pipwerks = {
 };
 '''
 
+---
+
+## Explication des Modifications pour la Durée
+
+Pour permettre la saisie de la durée en heures, minutes ou secondes, j'ai apporté les changements suivants dans la partie Streamlit de ton code :
+
+1.  **Champs de saisie distincts** : Au lieu d'un seul `st.number_input` pour les secondes, j'ai créé trois champs pour les heures, minutes et secondes.
+    * `hours = st.number_input("Heures", min_value=0, value=0)`
+    * `minutes = st.number_input("Minutes", min_value=0, max_value=59, value=0)`
+    * `seconds = st.number_input("Secondes", min_value=0, max_value=59, value=30)`
+
+2.  **Calcul de la durée totale en secondes** : Avant de générer le paquet SCORM, je convertis la durée saisie (heures, minutes, secondes) en un total de secondes. C'est nécessaire car le template HTML et le script JavaScript attendent une durée en secondes.
+    * `total_duration_in_seconds = (hours * 3600) + (minutes * 60) + seconds`
+
+3.  **Mise à jour du template HTML** : La variable `total_duration_in_seconds` est ensuite utilisée pour remplacer le placeholder `{time}` dans le `HTML_TEMPLATE`.
+
+Ces modifications rendent l'interface utilisateur plus intuitive pour la spécification de la durée requise.
+
+---
+
+```python
 # --- Streamlit App ---
-# Titre de l'application Streamlit
 st.title("Générateur de paquet SCORM")
 
 # Champ de saisie pour l'URL à encapsuler
-url = st.text_input("URL à consulter", "https://example.com")
+url = st.text_input("URL à consulter", "[https://example.com](https://example.com)")
 # Sélecteur pour choisir la version SCORM
 scorm_version = st.selectbox("Version SCORM", ["SCORM 1.2", "SCORM 2004 3rd edition"])
-# Champ numérique pour définir la durée minimale de consultation
-duration = st.number_input("Durée minimale (en secondes)", min_value=1, value=30)
+
+st.subheader("Durée minimale de consultation")
+col_h, col_m, col_s = st.columns(3)
+
+with col_h:
+    hours = st.number_input("Heures", min_value=0, value=0)
+with col_m:
+    minutes = st.number_input("Minutes", min_value=0, max_value=59, value=0)
+with col_s:
+    seconds = st.number_input("Secondes", min_value=0, max_value=59, value=30)
+
+# Calcul de la durée totale en secondes
+total_duration_in_seconds = (hours * 3600) + (minutes * 60) + seconds
 
 # Bouton pour générer le paquet SCORM
 if st.button("Générer le SCORM"):
-    # Créer un buffer en mémoire pour le fichier zip
-    buffer = io.BytesIO()
-    # Crée un fichier zip en mémoire
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-        # Remplace les placeholders dans le template HTML avec l'URL et la durée
-        html_content = HTML_TEMPLATE.replace("{url}", url).replace("{time}", str(duration))
-        # Écrit le fichier index.html dans le zip
-        zf.writestr("index.html", html_content)
-        # Écrit le fichier scorm.js dans le zip
-        zf.writestr("scorm.js", SCORM_JS)
+    if total_duration_in_seconds == 0:
+        st.error("La durée minimale de consultation doit être supérieure à zéro.")
+    else:
+        # Créer un buffer en mémoire pour le fichier zip
+        buffer = io.BytesIO()
+        # Crée un fichier zip en mémoire
+        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Remplace les placeholders dans le template HTML avec l'URL et la durée
+            html_content = HTML_TEMPLATE.replace("{url}", url).replace("{time}", str(total_duration_in_seconds))
+            # Écrit le fichier index.html dans le zip
+            zf.writestr("index.html", html_content)
+            # Écrit le fichier scorm.js dans le zip
+            zf.writestr("scorm.js", SCORM_JS)
 
-        # Choisit le bon manifeste SCORM en fonction de la version sélectionnée
-        if scorm_version == "SCORM 1.2":
-            zf.writestr("imsmanifest.xml", MANIFEST_12)
-        else:
-            zf.writestr("imsmanifest.xml", MANIFEST_2004)
+            # Choisit le bon manifeste SCORM en fonction de la version sélectionnée
+            if scorm_version == "SCORM 1.2":
+                zf.writestr("imsmanifest.xml", MANIFEST_12)
+            else:
+                zf.writestr("imsmanifest.xml", MANIFEST_2004)
 
-    # Affiche un message de succès
-    st.success("Fichier SCORM généré !")
-    # Fournit un bouton de téléchargement pour le fichier zip généré
-    st.download_button(
-        "📥 Télécharger le paquet SCORM",
-        data=buffer.getvalue(),
-        file_name="scorm_package.zip",
-        mime="application/zip" # Spécifie le type MIME pour le téléchargement
-    )
-
-
-
+        # Affiche un message de succès
+        st.success("Fichier SCORM généré !")
+        # Fournit un bouton de téléchargement pour le fichier zip généré
+        st.download_button(
+            "📥 Télécharger le paquet SCORM",
+            data=buffer.getvalue(),
+            file_name="scorm_package.zip",
+            mime="application/zip" # Spécifie le type MIME pour le téléchargement
+        )
