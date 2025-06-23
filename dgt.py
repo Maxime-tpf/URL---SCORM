@@ -173,7 +173,7 @@ url = st.text_input("URL à consulter", "https://example.com")
 # Sélecteur pour choisir la version SCORM
 scorm_version = st.selectbox("Version SCORM", ["SCORM 1.2", "SCORM 2004 3rd edition"])
 
-st.subheader("Durée minimale de consultation")
+st.subheader("Durée")
 # Utilisation de colonnes pour une meilleure disposition des champs de durée
 col_h, col_m, col_s = st.columns(3)
 
