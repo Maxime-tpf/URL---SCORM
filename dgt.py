@@ -160,22 +160,10 @@ def parse_duration_to_seconds(duration_str):
 # --- Streamlit App ---
 st.title("Générateur de paquet SCORM")
 
-predefined_urls = {
-    "Exemple Google": "https://www.google.com",
-    "Exemple Wikipédia": "https://fr.wikipedia.org/wiki/Wikipédia",
-    "Exemple OpenAI": "https://openai.com",
-    "Autre (saisir ci-dessous)": ""
-}
+# Champ de saisie pour l'URL à encapsuler
+url = st.text_input("URL à consulter :")
 
-selected_predefined_url_name = st.selectbox(
-    "Choisir une URL prédéfinie :",
-    list(predefined_urls.keys())
-)
-
-default_url_value = predefined_urls[selected_predefined_url_name]
-
-url = st.text_input("URL à consulter (modifiable) :", value=default_url_value)
-
+# Sélecteur pour choisir la version SCORM
 scorm_version = st.selectbox("Version SCORM", ["SCORM 1.2", "SCORM 2004 3rd edition"])
 
 st.subheader("Durée minimale de consultation")
