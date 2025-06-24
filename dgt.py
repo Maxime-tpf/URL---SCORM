@@ -162,7 +162,7 @@ scorm_version = st.selectbox("Version SCORM", ["SCORM 1.2", "SCORM 2004 3rd edit
 st.subheader("Durée minimale de consultation")
 col1, col2, col3 = st.columns(3)
 with col1:
-    hours = st.text_input("Heures (HH)", value="00")
+    hours = st.text_input("Heures (HH)", value="0")
 with col2:
     minutes = st.text_input("Minutes (MM)", value="00")
 with col3:
