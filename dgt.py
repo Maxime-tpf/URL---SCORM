@@ -135,16 +135,9 @@ var pipwerks = {
   }
 };'''
 
-def parse_duration_to_seconds(duration_str):
-    duration_str = duration_str.replace(" ", "")
-    pattern = re.compile(r"^(\d{1,2}):(\d{2}):(\d{2})$")
-    match = pattern.match(duration_str)
-
-    if not match:
-        return None, "Le format de durée doit être HH:MM:SS (ex: 00:01:30 ou 25:01:30)."
-
+def parse_duration_to_seconds(hours, minutes, seconds):
     try:
-        h, m, s = map(int, match.groups())
+        h, m, s = int(hours), int(minutes), int(seconds)
     except ValueError:
         return None, "Les valeurs de durée ne sont pas valides (doivent être des nombres)."
 
@@ -167,13 +160,19 @@ url = st.text_input("URL à consulter :")
 scorm_version = st.selectbox("Version SCORM", ["SCORM 1.2", "SCORM 2004 3rd edition"])
 
 st.subheader("Durée minimale de consultation")
-duration_input = st.text_input("Durée (HH:MM:SS) :", value="00:00:30")
+col1, col2, col3 = st.columns(3)
+with col1:
+    hours = st.text_input("Heures (HH)", value="00")
+with col2:
+    minutes = st.text_input("Minutes (MM)", value="00")
+with col3:
+    seconds = st.text_input("Secondes (SS)", value="30")
 
 if st.button("Générer le SCORM"):
     if not url.strip():
         st.error("Veuillez saisir une URL à consulter.")
     else:
-        total_duration_in_seconds, error_message = parse_duration_to_seconds(duration_input)
+        total_duration_in_seconds, error_message = parse_duration_to_seconds(hours, minutes, seconds)
 
         if error_message:
             st.error(error_message)
