@@ -26,8 +26,7 @@ MANIFEST_12 = '''<?xml version="1.0" encoding="UTF-8"?>
       <file href="scorm.js"/>
     </resource>
   </resources>
-</manifest>
-'''
+</manifest>'''
 
 MANIFEST_2004 = '''<?xml version="1.0" encoding="UTF-8"?>
 <manifest identifier="com.example.scorm" version="1.0"
@@ -49,8 +48,7 @@ MANIFEST_2004 = '''<?xml version="1.0" encoding="UTF-8"?>
       <file href="scorm.js"/>
     </resource>
   </resources>
-</manifest>
-'''
+</manifest>'''
 
 HTML_TEMPLATE = '''<!DOCTYPE html>
 <html>
@@ -91,8 +89,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
   <h2>Chargement du contenu...</h2>
   <iframe id="target" width="100%" height="600px" style="border: none;"></iframe>
 </body>
-</html>
-'''
+</html>'''
 
 SCORM_JS = '''// pipwerks SCORM API Wrapper (simplifié pour SCORM 1.2)
 var pipwerks = {
@@ -127,4 +124,87 @@ var pipwerks = {
     },
 
     getAPIHandle: function() {
-      var win = windo
+      var win = window;
+      while (win) {
+        if (win.API) return win.API;
+        if (win.parent && win.parent !== win) win = win.parent;
+        else break;
+      }
+      return null;
+    }
+  }
+};'''
+
+def parse_duration_to_seconds(duration_str):
+    duration_str = duration_str.replace(" ", "")
+    pattern = re.compile(r"^(\d{1,2}):(\d{2}):(\d{2})$")
+    match = pattern.match(duration_str)
+
+    if not match:
+        return None, "Le format de durée doit être HH:MM:SS (ex: 00:01:30 ou 25:01:30)."
+
+    try:
+        h, m, s = map(int, match.groups())
+    except ValueError:
+        return None, "Les valeurs de durée ne sont pas valides (doivent être des nombres)."
+
+    if not (0 <= m <= 59 and 0 <= s <= 59):
+        return None, "Les minutes (00-59) et les secondes (00-59) ne sont pas valides."
+
+    total_seconds = (h * 3600) + (m * 60) + s
+    if total_seconds == 0:
+        return None, "La durée totale doit être supérieure à zéro."
+
+    return total_seconds, None
+
+# --- Streamlit App ---
+st.title("Générateur de paquet SCORM")
+
+predefined_urls = {
+    "Exemple Google": "https://www.google.com",
+    "Exemple Wikipédia": "https://fr.wikipedia.org/wiki/Wikipédia",
+    "Exemple OpenAI": "https://openai.com",
+    "Autre (saisir ci-dessous)": ""
+}
+
+selected_predefined_url_name = st.selectbox(
+    "Choisir une URL prédéfinie :",
+    list(predefined_urls.keys())
+)
+
+default_url_value = predefined_urls[selected_predefined_url_name]
+
+url = st.text_input("URL à consulter (modifiable) :", value=default_url_value)
+
+scorm_version = st.selectbox("Version SCORM", ["SCORM 1.2", "SCORM 2004 3rd edition"])
+
+st.subheader("Durée minimale de consultation")
+duration_input = st.text_input("Durée (HH:MM:SS) :", value="00:00:30")
+
+if st.button("Générer le SCORM"):
+    if not url.strip():
+        st.error("Veuillez saisir une URL à consulter.")
+    else:
+        total_duration_in_seconds, error_message = parse_duration_to_seconds(duration_input)
+
+        if error_message:
+            st.error(error_message)
+        else:
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+                html_content = HTML_TEMPLATE.replace("{url}", url).replace("{time}", str(total_duration_in_seconds))
+                zf.writestr("index.html", html_content)
+                zf.writestr("scorm.js", SCORM_JS)
+
+                if scorm_version == "SCORM 1.2":
+                    zf.writestr("imsmanifest.xml", MANIFEST_12)
+                else:
+                    zf.writestr("imsmanifest.xml", MANIFEST_2004)
+
+            st.success("Fichier SCORM généré !")
+            st.download_button(
+                "📥 Télécharger le paquet SCORM",
+                data=buffer.getvalue(),
+                file_name="scorm_package.zip",
+                mime="application/zip"
+            )
